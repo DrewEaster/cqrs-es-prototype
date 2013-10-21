@@ -35,8 +35,7 @@ case class CustomerBuilder(customerId: UUID, age: Int, name: String) extends Ent
   def build = Customer(customerId, age, name)
 }
 
-class CustomerAR(id: UUID, eventStore: EventStore, eventStream: ActorRef)
-  extends EventSourcedActor[Customer, CustomerBuilder](id, eventStore, eventStream) with ActorLogging {
+class CustomerAR(id: UUID, context: EventSourceContext) extends EventSourcedActor[Customer, CustomerBuilder](id, context) with ActorLogging {
 
   def newBuilder = CustomerBuilder(id, 0, "")
 
@@ -46,21 +45,20 @@ class CustomerAR(id: UUID, eventStore: EventStore, eventStream: ActorRef)
     case CustomerAgeChanged(_, newAge) => builder.copy(age = newAge)
   }
 
-  def handleCommand = {
-    case CreateCustomer(customerId, name, age) =>
-      unitOfWork {
-        log.info("Creating customer...")
-        _ += CustomerCreated(customerId, name, age)
-      }
-    case ChangeCustomerName(customerId, newName) =>
-      unitOfWork {
-        log.info("Changing customer name...")
-        _ += CustomerNameChanged(customerId, newName)
-      }
-    case ChangeCustomerAge(customerId, newAge) =>
-      unitOfWork {
-        log.info("Changing customer age...")
-        _ += CustomerAgeChanged(customerId, newAge)
-      }
+  def handleCommand(cmd: Any) = {
+    cmd match {
+      case CreateCustomer(customerId, name, age) =>
+        unitOfWork {
+          _ += CustomerCreated(customerId, name, age)
+        }
+      case ChangeCustomerName(customerId, newName) =>
+        unitOfWork {
+          _ += CustomerNameChanged(customerId, newName)
+        }
+      case ChangeCustomerAge(customerId, newAge) =>
+        unitOfWork {
+          _ += CustomerAgeChanged(customerId, newAge)
+        }
+    }
   }
 }

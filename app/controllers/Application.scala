@@ -2,8 +2,8 @@ package controllers
 
 import play.api.mvc._
 import java.util.UUID
-import akka.actor.{ActorRef, ActorLogging, Actor, Props}
-import core.eventsource.{Event, InMemoryEventStore, EventStreamActor}
+import akka.actor._
+import core.eventsource._
 import play.libs.Akka
 import model._
 import akka.pattern.ask
@@ -18,6 +18,27 @@ import scala.concurrent.duration._
 import play.api.libs.json.Json
 import scala.concurrent.ExecutionContext
 import ExecutionContext.Implicits.global
+import model.ChangeCustomerAge
+import controllers.CustomerDTO
+import model.CustomerCreated
+import model.CustomerAgeChanged
+import controllers.GetCustomer
+import scala.Some
+import akka.routing.Listen
+import model.ChangeCustomerName
+import model.CustomerNameChanged
+import model.CreateCustomer
+import model.ChangeCustomerAge
+import controllers.CustomerDTO
+import model.CustomerCreated
+import model.CustomerAgeChanged
+import controllers.GetCustomer
+import scala.Some
+import akka.routing.Listen
+import core.eventsource.Event
+import model.ChangeCustomerName
+import model.CustomerNameChanged
+import model.CreateCustomer
 
 case class CustomerDTO(uuid: UUID, name: String, age: Int, version: Long)
 
@@ -95,10 +116,12 @@ object Application extends Controller {
 
   def create(name: String, age: Int) = Action {
     val uuid = UUID.randomUUID
-    val customerActor = Akka.system.actorOf(Props(new CustomerAR(uuid, new InMemoryEventStore(), eventStream)).withDispatcher("akka.deque-mailbox-dispatcher"), name = "customer:" + uuid)
+    val customerActor = Akka.system.actorOf(Props(new AggregateRoot(eventStream,
+      context => Akka.system.actorOf(Props(new CustomerAR(uuid, context)), name = "customer:" + uuid)
+    )))
     customers.put(uuid, customerActor)
     customerActor ! CreateCustomer(uuid, name, age)
-    Ok(uuid.toString).as(JSON)
+    Ok(UUID.randomUUID.toString).as(JSON)
   }
 
   def changeName(id: String, newName: String) = Action {
