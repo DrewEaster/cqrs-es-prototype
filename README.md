@@ -1,4 +1,4 @@
-Address Book
-============
+Thespian Address Book
+=====================
 
 A simple Play! application showcasing Thespian.
