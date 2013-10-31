@@ -39,104 +39,51 @@ import core.eventsource.Event
 import model.ChangeCustomerName
 import model.CustomerNameChanged
 import model.CreateCustomer
-
-case class CustomerDTO(uuid: UUID, name: String, age: Int, version: Long)
-
-case class GetCustomer(uuid: UUID)
-
-case object GetCustomers
-
-class CustomerModel extends Actor with ActorLogging {
-
-  val model = scala.collection.mutable.Map[UUID, CustomerDTO]()
-
-  def receive = {
-    case GetCustomers => {
-      sender ! model.values.toSeq
-    }
-    case GetCustomer(id) => {
-      val customer = model(id)
-      if (customer == null) sender ! None else sender ! Some(customer)
-    }
-    case Event(CustomerCreated(id, name, age), version) => {
-      model.put(id, CustomerDTO(id, name, age, version))
-    }
-    case Event(CustomerNameChanged(id, name), version) => {
-      val customer = model(id)
-      if (customer != null) model.put(id, customer.copy(name = name, version = version))
-      else Logger.warn("Customer " + id + " not in read model")
-    }
-    case Event(CustomerAgeChanged(id, age), version) => {
-      val customer = model(id)
-      if (customer != null) model.put(id, customer.copy(age = age, version = version))
-      else Logger.warn("Customer " + id + " not in read model")
-    }
-  }
-}
+import com.dreweaster.thespian.domain.DomainModel
+import model.command.{AddressBookDomain, Person}
+import model.query._
+import scala.Some
+import model.command.PersonCommands.CreatePerson
 
 object Application extends Controller {
 
   implicit val timeout = Timeout(5 seconds)
 
-  val readModel = Akka.system.actorOf(Props[CustomerModel], "customerModel")
-
-  val eventStream = Akka.system.actorOf(Props[EventStreamActor], "eventStream")
-
-  // Not thread safe!
-  val customers = scala.collection.mutable.Map[UUID, ActorRef]()
-
-  eventStream ! Listen(readModel)
+  val addressBook = AddressBookDomain.model.subscribe(Person, AddressBook.props)
 
   def index = Action.async {
-    (readModel ? GetCustomers).map {
+    (addressBook ? GetEntries).map {
       case values =>
-        val customers = values.asInstanceOf[Seq[CustomerDTO]]
-        Ok(customers.foldLeft(Json.arr()) {
-          (jsArray, customer) =>
+        val entries = values.asInstanceOf[Seq[AddressBookEntry]]
+        Ok(entries.foldLeft(Json.arr()) {
+          (jsArray, entry) =>
             jsArray :+ Json.obj(
-              "id" -> customer.uuid.toString,
-              "name" -> customer.name,
-              "age" -> customer.age,
-              "version" -> customer.version)
+              "id" -> entry.id.toString,
+              "first_name" -> entry.firstName,
+              "last_name" -> entry.lastName,
+              "gender" -> entry.gender,
+              "version" -> entry.version)
         })
     }
   }
 
   def show(id: String) = Action.async {
-    (readModel ? GetCustomer(UUID.fromString(id))).map {
-      case Some(customer: CustomerDTO) => Ok(
+    (addressBook ? GetEntry(UUID.fromString(id))).map {
+      case Some(entry: AddressBookEntry) => Ok(
         Json.obj(
-          "id" -> customer.uuid.toString,
-          "name" -> customer.name,
-          "age" -> customer.age,
-          "version" -> customer.version))
+          "id" -> entry.id.toString,
+          "first_name" -> entry.firstName,
+          "last_name" -> entry.lastName,
+          "gender" -> entry.gender,
+          "version" -> entry.version))
       case None => NotFound
     }
   }
 
-  def create(name: String, age: Int) = Action {
-    val uuid = UUID.randomUUID
-    val customerActor = Akka.system.actorOf(Props(new AggregateRoot(eventStream,
-      context => Akka.system.actorOf(Props(new CustomerAR(uuid, context)), name = "customer:" + uuid)
-    )))
-    customers.put(uuid, customerActor)
-    customerActor ! CreateCustomer(uuid, name, age)
-    Ok(UUID.randomUUID.toString).as(JSON)
-  }
-
-  def changeName(id: String, newName: String) = Action {
-    val customer = customers(UUID.fromString(id))
-    if (customer != null) {
-      customer ! ChangeCustomerName(UUID.fromString(id), newName)
-      Ok
-    } else NotFound
-  }
-
-  def changeAge(id: String, newAge: Int) = Action {
-    val customer = customers(UUID.fromString(id))
-    if (customer != null) {
-      customer ! ChangeCustomerAge(UUID.fromString(id), newAge)
-      Ok
-    } else NotFound
+  def create(firstName: String, lastName:String, gender:String, dob: String) = Action {
+    val id = UUID.randomUUID
+    val person = AddressBookDomain.model.aggregateRootOf(Person, id)
+    person ! CreatePerson
+    Ok(Json.obj("id" -> id.toString))
   }
 }
