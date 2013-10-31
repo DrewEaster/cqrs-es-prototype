@@ -1,4 +1,4 @@
-cqrs-es-prototype
-=================
+Address Book
+============
 
-Playing with DDD, CQRS and Event Sourcing using Akka and Play!
+A simple Play! application that uses Thespian.
