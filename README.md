@@ -1,4 +1,4 @@
 Address Book
 ============
 
-A simple Play! application that uses Thespian.
+A simple Play! application showcasing Thespian.
