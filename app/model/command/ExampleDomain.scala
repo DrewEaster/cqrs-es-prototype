@@ -2,8 +2,8 @@ package model.command
 
 import com.dreweaster.thespian.domain.DomainModel
 
-object AddressBookDomain {
-  val model = DomainModel("address-book") {
+object ExampleDomain {
+  val model = DomainModel("example-domain") {
     Person
   }
 }
